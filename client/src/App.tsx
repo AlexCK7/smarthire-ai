@@ -4,6 +4,7 @@ import './App.css';
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
 
   const handleUpload = async () => {
     if (!file) return alert('Please select a file.');
@@ -19,6 +20,17 @@ function App() {
 
       const data = await res.json();
       setResult(data);
+
+      const now = new Date();
+      setHistory((prev) => [
+        ...prev,
+        {
+          name: file.name,
+          time: now.toLocaleString(),
+          score: data.results?.matchPercentage,
+          topJob: data.results?.topJobs[0],
+        },
+      ]);
     } catch (err) {
       console.error(err);
       alert('Upload failed');
@@ -42,14 +54,44 @@ function App() {
         Upload Resume
       </button>
 
+      {/* Display latest result */}
       {result && (
-        <div className="mt-6 bg-white text-black p-4 rounded shadow-md w-full max-w-md">
-          <h3 className="text-lg font-semibold">
+        <div className="mt-6 bg-white text-black p-6 rounded shadow-md w-full max-w-md">
+          <h3 className="text-xl font-semibold mb-4">
             Match Score: {result.results?.matchPercentage}%
           </h3>
-          <ul className="list-disc mt-2 ml-5">
+
+          <div className="grid gap-4">
             {result.results?.topJobs.map((job: string, idx: number) => (
-              <li key={idx}>{job}</li>
+              <div
+                key={idx}
+                className="bg-gray-100 p-4 rounded-lg shadow hover:shadow-xl transition cursor-pointer hover:bg-gray-200"
+                onClick={() => alert(`(Coming soon) View details for: ${job}`)}
+              >
+                {job}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upload History Section */}
+      {history.length > 0 && (
+        <div className="mt-8 bg-white text-black p-4 rounded shadow-md w-full max-w-md">
+          <h4 className="text-md font-semibold mb-2">Upload History</h4>
+          <ul className="mt-2 space-y-2">
+            {history.map((item, idx) => (
+              <li
+                key={idx}
+                className="cursor-pointer bg-gray-100 hover:bg-gray-200 transition px-4 py-2 rounded"
+                onClick={() =>
+                  alert(
+                    `📄 ${item.name}\n🕒 ${item.time}\n🎯 Score: ${item.score}%\n🏆 Best Match: ${item.topJob}`
+                  )
+                }
+              >
+                {item.name} – {item.score}%
+              </li>
             ))}
           </ul>
         </div>
