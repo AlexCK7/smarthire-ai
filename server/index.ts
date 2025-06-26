@@ -1,62 +1,94 @@
 import express, { Request, Response } from 'express';
-import fileUpload from 'express-fileupload';
+import multer from 'multer';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import { Pool } from 'pg';
-import { RequestHandler } from 'express';
+import fs from 'fs';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Set up PostgreSQL
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(fileUpload());
 
+// File upload config using multer
+const upload = multer({ dest: 'uploads/' });
 
-const handleUpload: RequestHandler<any, any, any, any, Record<string, any>> = async (req, res) => {
+/** Simple keyword matching score calculator */
+function calculateScore(text: string, role: string): number {
+  const keywords: { [key: string]: string[] } = {
+    'Software Engineer': ['javascript', 'typescript', 'react', 'node', 'api', 'sql'],
+    'Data Analyst': ['sql', 'python', 'excel', 'pandas', 'tableau', 'data'],
+    'Web Developer': ['html', 'css', 'javascript', 'react', 'frontend'],
+  };
+
+  const targetWords = keywords[role] || [];
+  const lowerText = text.toLowerCase();
+  let matchCount = 0;
+
+  for (const word of targetWords) {
+    if (lowerText.includes(word)) matchCount++;
+  }
+
+  const score = Math.floor((matchCount / targetWords.length) * 100);
+  return isNaN(score) ? 0 : score;
+}
+
+/** Simple top role prediction based on most keyword matches */
+function getTopJobRole(text: string): string {
+  const roles = ['Software Engineer', 'Data Analyst', 'Web Developer'];
+  let bestScore = -1;
+  let bestRole = '';
+
+  for (const role of roles) {
+    const score = calculateScore(text, role);
+    if (score > bestScore) {
+      bestScore = score;
+      bestRole = role;
+    }
+  }
+
+  return bestRole || 'Unknown';
+}
+
+// Upload resume endpoint
+app.post('/upload', upload.single('resume'), async (req, res): Promise<void> => {
   try {
-    if (
-      !req.files ||
-      !(req.files as fileUpload.FileArray).resume
-    ) {
+    const file = req.file;
+    const role = req.body.role || 'Software Engineer';
+
+    if (!file) {
       res.status(400).json({ error: 'No file uploaded' });
       return;
     }
 
-    const resume = (req.files as fileUpload.FileArray).resume as fileUpload.UploadedFile;
-    const resumeText = resume.data.toString('utf8');
+    const fileText = fs.readFileSync(file.path, 'utf-8');
+    fs.unlinkSync(file.path); // delete file after reading
 
-    const score = Math.floor(Math.random() * 101);
-    const topJobs = ['Software Engineer', 'Data Analyst', 'Web Developer'];
-    const topJob = topJobs[Math.floor(Math.random() * topJobs.length)];
+
+    const score = calculateScore(fileText, role);
+    const topJob = getTopJobRole(fileText);
 
     await pool.query(
-      `INSERT INTO resume_history (filename, score, top_job)
-       VALUES ($1, $2, $3)`,
-      [resume.name, score, topJob]
+      'INSERT INTO resume_history (filename, score, top_job) VALUES ($1, $2, $3)',
+      [file.originalname, score, topJob]
     );
 
-    res.json({
-      results: {
-        matchPercentage: score,
-        topJobs: [topJob],
-      },
-    });
+    res.json({ filename: file.originalname, score, topJob });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Upload failed' });
   }
+});
 
-
-};
-
-app.post('/upload', handleUpload);
-
-  app.get('/history', async (req: Request, res: Response) => {
+// Get resume history
+app.get('/history', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM resume_history ORDER BY created_at DESC');
     res.json(result.rows);
@@ -66,7 +98,8 @@ app.post('/upload', handleUpload);
   }
 });
 
-app.delete('/history', async (req: Request, res: Response) => {
+// Clear resume history
+app.delete('/history', async (_req: Request, res: Response) => {
   try {
     await pool.query('DELETE FROM resume_history');
     res.json({ message: 'History cleared' });
@@ -76,11 +109,15 @@ app.delete('/history', async (req: Request, res: Response) => {
   }
 });
 
+// Start server
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, status: 'SmartHire AI backend running' });
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
 
 pool.query('SELECT NOW()')
   .then(() => console.log('✅ Connected to database'))
   .catch((err) => console.error('❌ Database connection error:', err));
-
