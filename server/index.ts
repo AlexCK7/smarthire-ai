@@ -1,9 +1,33 @@
+// Load environment variables
 import express, { Request, Response } from 'express';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import { Pool } from 'pg';
 import fs from 'fs';
+
+function generateFeedback(score: number, role: string): string[] {
+  const tips: string[] = [];
+
+  if (score < 50) {
+    tips.push("Consider tailoring your resume more to the role's keywords.");
+    tips.push("Try adding measurable achievements related to the position.");
+  } else if (score < 80) {
+    tips.push("Good job! You can improve it further with more industry-specific terms.");
+  } else {
+    tips.push("Excellent match! Keep this version for applying.");
+  }
+
+  if (role.toLowerCase().includes("data")) {
+    tips.push("Add tools like SQL, Excel, Python, or Tableau if relevant.");
+  } else if (role.toLowerCase().includes("software")) {
+    tips.push("Mention projects with specific tech stacks or languages.");
+  } else if (role.toLowerCase().includes("web")) {
+    tips.push("Include frontend/backend frameworks like React, Node.js, or Next.js.");
+  }
+
+  return tips;
+}
 
 dotenv.config();
 
@@ -58,7 +82,7 @@ function getTopJobRole(text: string): string {
 }
 
 // Upload resume endpoint
-app.post('/upload', upload.single('resume'), async (req, res): Promise<void> => {
+app.post('/upload', upload.single('resume'), async (req, res) => {
   try {
     const file = req.file;
     const role = req.body.role || 'Software Engineer';
@@ -68,24 +92,30 @@ app.post('/upload', upload.single('resume'), async (req, res): Promise<void> => 
       return;
     }
 
-    const fileText = fs.readFileSync(file.path, 'utf-8');
-    fs.unlinkSync(file.path); // delete file after reading
+    const filename = file.originalname;
 
+    // Scoring simulation (later will improve)
+    const score = Math.floor(Math.random() * 100) + 1;
+    const topJob = score > 60 ? role : ['Data Analyst', 'Web Developer', 'Software Engineer'][Math.floor(Math.random() * 3)];
 
-    const score = calculateScore(fileText, role);
-    const topJob = getTopJobRole(fileText);
+    const feedback = generateFeedback(score, role);
 
     await pool.query(
-      'INSERT INTO resume_history (filename, score, top_job) VALUES ($1, $2, $3)',
-      [file.originalname, score, topJob]
+      'INSERT INTO resume_history (filename, score, top_job, created_at) VALUES ($1, $2, $3, NOW())',
+      [filename, score, topJob]
     );
 
-    res.json({ filename: file.originalname, score, topJob });
+    const rawResult = { filename, score, topJob, feedback };
+    res.json(rawResult);
+
+    return;
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Upload failed' });
+    res.status(500).json({ error: 'Server error' });
+    return;
   }
 });
+
 
 // Get resume history
 app.get('/history', async (_req: Request, res: Response) => {

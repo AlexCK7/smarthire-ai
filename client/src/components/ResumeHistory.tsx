@@ -31,9 +31,16 @@ const ResumeHistory: React.FC = () => {
     <div className="p-4 max-w-2xl mx-auto">
       <h2 className="text-2xl font-semibold mb-4">Resume History</h2>
 
-      {error && <p className="text-red-600">{error}</p>}
+      {error && history.length === 0 && (
+  <p className="text-sm text-gray-500">
+    Unable to connect to history. Try again later.
+  </p>
+)}
 
-      {history.length === 0 && <p>No history available.</p>}
+{!error && history.length === 0 && (
+  <p>No resume history available.</p>
+)}
+
 
       {history.map(entry => (
         <div key={entry.id} className="bg-white shadow-md rounded p-4 mb-4">
