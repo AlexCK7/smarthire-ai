@@ -17,6 +17,7 @@
     "express": "^5.1.0",
     "express-fileupload": "^1.5.1",
     "multer": "^2.0.1",
+    "pdf-parse": "^1.1.1",
     "pg": "^8.16.2"
   },
   "devDependencies": {
