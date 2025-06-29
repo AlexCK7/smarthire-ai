@@ -1,1 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
 .env
+.env.local
+
+# Uploads folder (for temp resume files)
+uploads/
+
+# System files
+.DS_Store
+
+# Logs
+*.log
