@@ -1,3 +1,12 @@
+import {
+  calculateKeywordScore,
+  calculateCompanyTierScore,
+  calculateExperienceScore,
+  calculateFinalScore
+} from './scoringUtils';
+
+import fetch from 'node-fetch'; // make sure this import is at the top
+
 // Load environment variables
 import express, { Request, Response } from 'express';
 import multer from 'multer';
@@ -34,6 +43,23 @@ async function getEmbedding(text: string): Promise<number[]> {
   });
   return response.data[0].embedding;
 }
+
+/**
+ * Simple in-memory cache (upgrade to Redis for production)
+ */
+const embeddingCache = new Map<string, number[]>();
+
+async function getCachedEmbedding(text: string): Promise<number[]> {
+  const hash = Buffer.from(text).toString('base64');
+  if (embeddingCache.has(hash)) {
+    console.log("✅ Using cached embedding.");
+    return embeddingCache.get(hash)!;
+  }
+  const embedding = await getEmbedding(text);
+  embeddingCache.set(hash, embedding);
+  return embedding;
+}
+
 
 /**
  * Helper: calculate cosine similarity between two embedding vectors
@@ -125,9 +151,10 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
     }
 
     // ✅ Semantic embedding-based scoring
-    const resumeEmbedding = await getEmbedding(resumeText);
-    const jdEmbedding = await getEmbedding(jobDescription);
-    const semanticScore = cosineSimilarity(resumeEmbedding, jdEmbedding) * 100;
+    // const resumeEmbedding = await getEmbedding(resumeText);
+    // const jdEmbedding = await getEmbedding(jobDescription);
+    // const semanticScore = cosineSimilarity(resumeEmbedding, jdEmbedding) * 100;
+    const semanticScore = 75; // dummy static score for local testing
 
     /**
      * Keyword-based scoring function (can be expanded for FAANG++ detailed scoring)
@@ -144,19 +171,50 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
       return Math.min(score, 100);
     }
 
+    // Example usage (adapt to your logic):
+    
+    const jdKeywords = jobDescription.split(/\W+/).filter((word: string) => word.length > 2); // simple split for now
+
+const experienceData = [
+  { company: "Google", years: 2, techStack: ["Python", "TensorFlow"] },
+  { company: "Amazon", years: 1, techStack: ["JavaScript", "AWS"] }
+];
+
+const keywordScore = calculateKeywordScore(resumeText, jdKeywords);
+const companyScore = calculateCompanyTierScore(experienceData);
+const experienceScore = calculateExperienceScore(experienceData);
+const finalScore = calculateFinalScore(keywordScore, companyScore, experienceScore);
+
+console.log("Keyword Score:", keywordScore);
+console.log("Company Score:", companyScore);
+console.log("Experience Score:", experienceScore);
+console.log("Final Combined Score:", finalScore);
+
+    
     const score = calculateScore(resumeText, role, jobDescription);
     const topJob = role; // placeholder, implement dynamic top job prediction logic later
 
     // 💾 Save results to DB
     await pool.query(
-      'INSERT INTO resume_history (filename, score, top_job, created_at) VALUES ($1, $2, $3, NOW())',
-      [file.originalname, semanticScore.toFixed(2), topJob]
-    );
+  'INSERT INTO resume_history (filename, score, top_job, created_at) VALUES ($1, $2, $3, NOW())',
+  [file.originalname, Math.round(semanticScore), topJob]
+);
 
     res.json({ filename: file.originalname, semanticScore, score, topJob, feedback: ["Sample feedback generated."] });
 
   } catch (err: any) {
     handleError(res, err, err.status || 500);
+  }
+});
+
+app.get('/ollama-test', async (_req, res) => {
+  try {
+    const response = await fetch('http://localhost:11434/api/tags');
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Ollama Test Error:", err);
+    res.status(500).json({ error: "Failed to connect to Ollama" });
   }
 });
 
