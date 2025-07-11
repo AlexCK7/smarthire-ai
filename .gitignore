@@ -14,3 +14,6 @@ build/
 
 # Optional: log files
 *.log
+
+# ignore python environment
+smarthireenv/
