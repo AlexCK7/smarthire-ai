@@ -5,7 +5,7 @@ import { PDFDocument, rgb, StandardFonts, PageSizes } from 'pdf-lib';
 const ResumeUploader: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [role, setRole] = useState<string>('Software Engineer');
-  const [jobDesc, setJobDesc] = useState<string>(''); // 🆕 job description input
+  const [jobDesc, setJobDesc] = useState<string>('');
   const [result, setResult] = useState<{
     score: number;
     topJob: string;
@@ -91,7 +91,9 @@ const ResumeUploader: React.FC = () => {
   };
 
   return (
-    <div className="p-4 border rounded shadow w-full max-w-md mx-auto my-8 bg-white">
+  <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+      
       <h2 className="text-xl font-bold mb-4">Upload Resume</h2>
 
       <label className="block mb-2 font-semibold">Select Target Role:</label>
@@ -119,13 +121,12 @@ const ResumeUploader: React.FC = () => {
       <input type="file" accept=".pdf,.doc,.docx" onChange={handleChange} className="mb-4" />
 
       <button
-  onClick={handleUpload}
-  disabled={!file}
-  className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${!file ? 'opacity-50 cursor-not-allowed' : ''}`}
->
-  Upload
-</button>
-
+        onClick={handleUpload}
+        disabled={!file}
+        className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${!file ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        Upload
+      </button>
 
       <div className="my-2">
         <label className="text-sm mr-2">Use A4 PDF size:</label>
@@ -147,23 +148,20 @@ const ResumeUploader: React.FC = () => {
           <p><strong>Your resume most aligns with:</strong> {result.topJob}</p>
           <p><strong>Match Score:</strong> {result.score}%</p>
 
+          <div className="mt-2">
+            <p className="font-semibold">Confidence Level:</p>
+            <div className="w-full bg-gray-300 rounded h-4">
+              <div
+                className={`h-4 rounded ${result.score >= 80 ? 'bg-green-600' : result.score >= 50 ? 'bg-yellow-500' : 'bg-red-600'}`}
+                style={{ width: `${result.score}%` }}
+              ></div>
+            </div>
+          </div>
 
-    {/* Confidence Level Bar */}
-    <div className="mt-2">
-      <p className="font-semibold">Confidence Level:</p>
-      <div className="w-full bg-gray-300 rounded h-4">
-        <div
-          className={`h-4 rounded ${result.score >= 80 ? 'bg-green-600' : result.score >= 50 ? 'bg-yellow-500' : 'bg-red-600'}`}
-          style={{ width: `${result.score}%` }}
-        ></div>
-      </div>
-    </div>
-
-    {/* Tips */}
-    {result.feedback && (
-      <div className="mt-2">
-        <p className="font-semibold">Tips for Improvement:</p>
-        <ul className="list-disc ml-5 text-sm">
+          {result.feedback && (
+            <div className="mt-2">
+              <p className="font-semibold">Tips for Improvement:</p>
+              <ul className="list-disc ml-5 text-sm">
                 {result.feedback.map((tip, index) => (
                   <li key={index}>{tip}</li>
                 ))}
@@ -197,7 +195,8 @@ const ResumeUploader: React.FC = () => {
         </div>
       )}
     </div>
+  </div>
   );
-};
+}
 
 export default ResumeUploader;
