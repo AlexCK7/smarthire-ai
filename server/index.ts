@@ -1,3 +1,6 @@
+import type { ResumeEvaluationResult } from './utils/resumeEvaluator';
+import { evaluateResume } from './utils/resumeEvaluator';
+
 import {
   calculateKeywordScore,
   calculateCompanyTierScore,
@@ -156,21 +159,6 @@ app.post('/upload', upload.single('resume'), async (req, res) => {
     // const semanticScore = cosineSimilarity(resumeEmbedding, jdEmbedding) * 100;
     const semanticScore = 75; // dummy static score for local testing
 
-    /**
-     * Keyword-based scoring function (can be expanded for FAANG++ detailed scoring)
-     */
-    function calculateScore(resumeText: string, role: string, jobDescription: string): number {
-      let score = 0;
-      const keywords = jobDescription
-        ? jobDescription.split(/\W+/).filter(word => word.length > 3)
-        : role.split(/\W+/);
-      for (const keyword of keywords) {
-        const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-        if (regex.test(resumeText)) score += 5;
-      }
-      return Math.min(score, 100);
-    }
-
     // Example usage (adapt to your logic):
     
     const jdKeywords = jobDescription.split(/\W+/).filter((word: string) => word.length > 2); // simple split for now
@@ -191,8 +179,9 @@ console.log("Experience Score:", experienceScore);
 console.log("Final Combined Score:", finalScore);
 
     
-    const score = calculateScore(resumeText, role, jobDescription);
-    const topJob = role; // placeholder, implement dynamic top job prediction logic later
+const results = evaluateResume(resumeText, role, jobDescription);
+const score = results.score;
+const topJob = role; // placeholder
 
     // 💾 Save results to DB
     await pool.query(
@@ -200,7 +189,15 @@ console.log("Final Combined Score:", finalScore);
   [file.originalname, Math.round(semanticScore), topJob]
 );
 
-    res.json({ filename: file.originalname, semanticScore, score, topJob, feedback: ["Sample feedback generated."] });
+    res.json({
+  filename: file.originalname,
+  score,
+  topJob,
+  semanticScore,
+  tier: results.tier,
+  scoreBreakdown: results.breakdown,
+  feedback: results.suggestions
+});
 
   } catch (err: any) {
     handleError(res, err, err.status || 500);
@@ -242,6 +239,45 @@ app.delete('/history', async (_req: Request, res: Response) => {
   }
 });
 
+// ✅ Unified evaluation route — uses evaluateResume safely with typed output
+app.post('/evaluate', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { resumeText, role, jobDescription } = req.body;
+
+    if (!resumeText || !role) {
+      res.status(400).json({ error: "Missing resumeText or role" });
+      return;
+    }
+
+    const results: ResumeEvaluationResult = evaluateResume(resumeText, role, jobDescription);
+
+    const suggestions = [
+      `For the role of ${role}, consider adding more quantifiable achievements.`,
+      `Mention specific tools or technologies commonly required for ${role}.`,
+      `Your resume lacks keywords such as “team collaboration” and “problem-solving”.`,
+    ];
+
+    const scoreBreakdown = {
+      keywordMatch: results.breakdown.keywords,
+      formatting: results.breakdown.formatting,
+      roleAlignment: results.breakdown.alignment,
+      github: results.breakdown.github,
+      fundamentals: results.breakdown.fundamentals,
+      overallFitScore: results.score
+    };
+
+    res.json({
+      ...results,
+      suggestions,
+      scoreBreakdown,
+    });
+
+  } catch (err) {
+    console.error('❌ Error in /evaluate:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 /**
  * Start server with DB connection validation
  */
@@ -259,3 +295,4 @@ app.delete('/history', async (_req: Request, res: Response) => {
     process.exit(1);
   }
 })();
+
